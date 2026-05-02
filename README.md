@@ -1,34 +1,47 @@
-# 1. Check out the new version
+# glitch-soc-nix
 
-```shell
-git clone --depth 1 https://github.com/glitch-soc/mastodon glitch-soc-src
-cd glitch-soc-src && git fetch --depth 1 origin <tag> && git checkout <tag> && cd ..
+A Nix flake packaging [glitch-soc](https://glitch-soc.github.io/docs/), a friendly fork of Mastodon, for NixOS.
+
+## Usage
+
+Add this flake as an input in your NixOS `flake.nix`:
+
+```nix
+inputs = {
+  nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.05";
+  glitch-soc = {
+    url = "git+https://codeberg.org/tutter/glitch-soc-nix.git";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+};
 ```
 
-# 2. Regenerate gemset.nix
+Then pass `inputs` through `specialArgs` and use the package in your mastodon config:
 
-```shell
-cd glitch-soc-src && nix run nixpkgs#bundix -- -l && cp gemset.nix .. && cd ..
+```nix
+{ inputs, pkgs, ... }:
+{
+  services.mastodon = {
+    enable  = true;
+    package = inputs.glitch-soc.packages.${pkgs.system}.default;
+    # ... rest of your mastodon configuration
+  };
+}
 ```
 
-# 3. Regenerate yarn-missing-hashes.json
+## Configuration
 
-```shell
-nix run nixpkgs#yarn-berry_4.yarn-berry-fetcher -- missing-hashes glitch-soc-src/yarn.lock > yarn-missing-hashes.json
+glitch-soc exposes additional instance settings via environment variables in `extraConfig`:
+
+```nix
+services.mastodon.extraConfig = {
+  MAX_TOOT_CHARS        = "5000";  # default: 500
+  MAX_BIO_CHARS         = "5000";  # default: 500
+  MAX_POLL_OPTIONS      = "12";    # default: 5
+  MAX_POLL_OPTION_CHARS = "200";   # default: 100
+};
 ```
 
-# 4. Update flake.nix: set rev = "<tag>", hash = lib.fakeHash, yarnHash = lib.fakeHash
-# Then bootstrap the hashes one by one:
+## Updating
 
-```shell
-nix build 2>&1 | grep "got:"   # replace source hash in flake.nix
-nix build 2>&1 | grep "got:"   # replace yarnHash in flake.nix
-```
-
-# 5. Final build and commit
-
-```shell
-nix build
-git add flake.nix flake.lock gemset.nix yarn-missing-hashes.json
-git commit -m "glitch-soc <version>"
-```
+See [UPDATE.md](UPDATE.md) for the step-by-step update process.
