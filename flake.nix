@@ -14,15 +14,15 @@
       (pkgs.path + "/pkgs/servers/mastodon")
       {
         pname   = "glitch-soc";
-        version = "4.5.9";
+        version = "4.5.10";
         srcOverride = pkgs.fetchFromGitHub {
           owner = "glitch-soc";
           repo  = "mastodon";
-          rev   = "v4.5.9";
-          hash  = "sha256-/ecgcT9g/i2mCaYZRv+C1nF1bFNDz6fSmkIU9qldOxI=";
+          rev   = "v4.5.10";
+          hash  = "sha256-D0mPXLCP0nDgJKI/fxuPCX91/vIgutr23wXuDCLrEaI=";
         };
         gemset = ./gemset.nix;
-        yarnHash = "sha256-k/byerDphE9ZII5Y0v30MXiDGZlqk+rnD/+bDqKraVY=";
+        yarnHash = "sha256-lFQWGPd3ojlZzCWYrtnpSYKCGZ5trxH5vvFUh1/YJ2M=";
         yarnMissingHashes = ./yarn-missing-hashes.json;
         ruby = pkgs.ruby.override {
           defaultGemConfig = pkgs.defaultGemConfig // {
