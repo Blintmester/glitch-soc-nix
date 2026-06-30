@@ -12,23 +12,17 @@
   in {
     packages.${system}.default = pkgs.mastodon.override {
       pname   = "glitch-soc";
-      version = "4.5.11";
+      version = "4.6.2";
 
-      srcOverride =
-        let base = pkgs.fetchFromGitHub {
-              owner = "glitch-soc";
-              repo  = "mastodon";
-              rev   = "v4.5.11";
-              hash  = "sha256-Wv9LM+WEc5yjgypaUbwShloFydK8yopdixxl6DM2VIg=";
-            };
-        in pkgs.runCommand "glitch-soc-src-4.5.11" { } ''
-          cp -r ${base} $out
-          chmod -R u+w $out
-          sed -i 's/^  version: 8$/  version: 9/' $out/yarn.lock
-        '';
+      srcOverride = pkgs.fetchFromGitHub {
+        owner = "glitch-soc";
+        repo  = "mastodon";
+        rev   = "v4.6.2";
+        hash  = "sha256-ze8qrYwQhmj1cMEsSiytZOF8lhyJ425buU20Jwh5Tl4=";
+      };
 
       gemset = ./gemset.nix;
-      yarnHash = "sha256-1GghgBh2AO8ScL7rHQi+ZgoUvMBhJ+A+c6+1A9X/4dA=";
+      yarnHash = "sha256-dAzr/REG0mxGtj6R9arZCpbXAWYh08f6H7vEuv8tuVc=";
       yarnMissingHashes = ./yarn-missing-hashes.json;
     };
   };

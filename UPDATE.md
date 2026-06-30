@@ -10,6 +10,7 @@ Follow these steps when a new glitch-soc version is released.
 git clone --depth 1 https://github.com/glitch-soc/mastodon glitch-soc-src
 cd glitch-soc-src
 git fetch --depth 1 origin <tag>   # e.g. v4.5.9
+git fetch origin tag v4.6.2 
 git checkout <tag>
 cd ..
 ```
