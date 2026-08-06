@@ -14,8 +14,8 @@
 #     timezone — 5 fields: min hour dom month dow)
 #
 # The pipeline pods borrow nix from the host store instead of shipping their
-# own, which is why PATH points into /nix and NIX_REMOTE talks to the host
-# daemon. Alpine only provides make, git and curl.
+# own: ci/nix-env.sh locates it under the mounted /nix and points nix at the
+# host daemon. Alpine only provides make, git and curl.
 
 when:
   - event: [cron, manual]
@@ -25,10 +25,7 @@ when:
 variables:
   - &image alpine:3.22
   - &nix_env
-    NIX_REMOTE: daemon
-    NIX_CONFIG: experimental-features = nix-command flakes
     NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
-    PATH: /nix/var/nix/profiles/system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
   - &nix_store
     kubernetes:
       volumes:
@@ -49,6 +46,7 @@ steps:
     backend_options: *nix_store
     commands:
       - apk add --no-cache make git bash ca-certificates
+      - . ci/nix-env.sh
       - |
         if [ "$CI_COMMIT_AUTHOR" = "woodpecker" ]; then
           echo "own commit, skipping"
@@ -70,6 +68,7 @@ steps:
     commands:
       - apk add --no-cache make git ca-certificates
       - test ! -f .ci-skip || exit 0
+      - . ci/nix-env.sh
       - make build
 
   - name: publish
