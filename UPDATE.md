@@ -7,9 +7,11 @@ is generated from it by `./update.sh`, which the `Makefile` wraps.
 ## Automatically
 
 `.woodpecker/update.yaml` runs on a cron trigger, follows the newest upstream
-tag, builds the package for real and opens a pull request. The one-time setup
-(secret, cron, shared nix store) is described in the pipeline header and in
-[ci/nix-store.yaml](ci/nix-store.yaml).
+tag, builds the package for real and opens a pull request. The one-time setup —
+a `forgejo_token` secret and the cron entry — is described in the pipeline
+header. Pods bring their own nix, so the store is cold on every run;
+[ci/nix-store.yaml](ci/nix-store.yaml) describes the faster variant that
+borrows the node's store instead.
 
 ## By bumping the version
 

@@ -1,9 +1,21 @@
-# Exposes the k3s node's /nix to the Woodpecker pipeline pods, so the CI build
-# reuses the NixOS host's store and its nix-daemon instead of fetching and
-# rebuilding the world on every run. Building mastodon from scratch in an
-# ephemeral store is not realistic; sharing the host store is.
+# OPTIONAL, and not what .woodpecker/update.yaml currently does.
+#
+# The pipeline ships its own nix (image nixos/nix), which means a cold store on
+# every run. This manifest is the alternative: hand the pipeline pods the k3s
+# node's /nix, so they reuse the NixOS host's store and its nix-daemon and only
+# build what actually changed.
 #
 #   kubectl apply -f ci/nix-store.yaml
+#
+# Switching to it means, in .woodpecker/update.yaml:
+#
+#   * image: a bare one (alpine) with `apk add --no-cache make git curl bash`
+#     as the first command — mounting over /nix would hide the nix image's own
+#     store, including its shell, and the container would not start
+#   * backend_options.kubernetes.volumes: - name: nix-store / path: /nix
+#   * the repo marked trusted in Woodpecker, or the volume is silently dropped
+#
+# ci/nix-env.sh already handles both shapes and needs no change.
 #
 # Adjust `namespace` to wherever the Woodpecker agent creates pipeline pods
 # (WOODPECKER_BACKEND_K8S_NAMESPACE) and `nodeAffinity` to the node that runs

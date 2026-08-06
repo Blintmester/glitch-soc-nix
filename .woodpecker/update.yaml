@@ -9,13 +9,13 @@
 #
 # Setup:
 #   * repo secret `forgejo_token`: Codeberg token with read/write on this repo
-#   * PVC `nix-store` sharing the node's /nix (see ci/nix-store.yaml)
 #   * cron "glitch-soc-update" on main, e.g. "0 4 * * *" (daily 04:00, server
 #     timezone — 5 fields: min hour dom month dow)
 #
-# The pipeline pods borrow nix from the host store instead of shipping their
-# own: ci/nix-env.sh locates it under the mounted /nix and points nix at the
-# host daemon. Alpine only provides make, git and curl.
+# The pods bring their own nix, so nothing has to be mounted from the node.
+# The price is a cold store on every run: the gems and the asset build are
+# redone each time, and only what cache.nixos.org already has is fetched.
+# ci/nix-store.yaml describes the faster variant if that becomes a problem.
 
 when:
   - event: [cron, manual]
@@ -23,14 +23,9 @@ when:
     path: flake.nix
 
 variables:
-  - &image alpine:3.22
-  - &nix_env
-    NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
-  - &nix_store
+  - &image nixos/nix:2.32.4
+  - &resources
     kubernetes:
-      volumes:
-        - name: nix-store
-          path: /nix
       resources:
         requests:
           memory: 2Gi
@@ -42,10 +37,8 @@ variables:
 steps:
   - name: update
     image: *image
-    environment: *nix_env
-    backend_options: *nix_store
+    backend_options: *resources
     commands:
-      - apk add --no-cache make git bash ca-certificates
       - . ci/nix-env.sh
       - |
         if [ "$CI_COMMIT_AUTHOR" = "woodpecker" ]; then
@@ -63,12 +56,10 @@ steps:
 
   - name: build
     image: *image
-    environment: *nix_env
-    backend_options: *nix_store
+    backend_options: *resources
     commands:
-      - apk add --no-cache make git ca-certificates
-      - test ! -f .ci-skip || exit 0
       - . ci/nix-env.sh
+      - test ! -f .ci-skip || exit 0
       - make build
 
   - name: publish
@@ -77,7 +68,7 @@ steps:
       FORGEJO_TOKEN:
         from_secret: forgejo_token
     commands:
-      - apk add --no-cache make git curl bash
+      - . ci/nix-env.sh
       - test ! -f .ci-skip || exit 0
       - |
         if [ "$CI_PIPELINE_EVENT" = "push" ]; then
