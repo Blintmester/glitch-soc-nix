@@ -1,69 +1,59 @@
 # Updating glitch-soc
 
-Follow these steps when a new glitch-soc version is released.
+The packaged release is the `version` string in `flake.nix`. Everything else —
+`gemset.nix`, `yarn-missing-hashes.json`, the source hash and the yarn hash —
+is generated from it by `./update.sh`, which the `Makefile` wraps.
 
-## Steps
+## Automatically
 
-### 1. Check out the new version
+`.woodpecker/update.yaml` runs on a cron trigger, follows the newest upstream
+tag, builds the package for real and opens a pull request. The one-time setup
+(secret, cron, shared nix store) is described in the pipeline header and in
+[ci/nix-store.yaml](ci/nix-store.yaml).
 
-```bash
-git clone --depth 1 https://github.com/glitch-soc/mastodon glitch-soc-src
-cd glitch-soc-src
-git fetch --depth 1 origin <tag>   # e.g. v4.5.9
-git fetch origin tag v4.6.2 
-git checkout <tag>
-cd ..
-```
+## By bumping the version
 
-### 2. Regenerate gemset.nix
-
-```bash
-cd glitch-soc-src
-nix run nixpkgs#bundix -- -l
-cp gemset.nix ../
-cd ..
-```
-
-### 3. Regenerate yarn-missing-hashes.json
-
-```bash
-nix run nixpkgs#yarn-berry_4.yarn-berry-fetcher -- missing-hashes glitch-soc-src/yarn.lock > yarn-missing-hashes.json
-```
-
-### 4. Update flake.nix
-
-Set the new `rev` and reset both hashes to `pkgs.lib.fakeHash`:
+Change one line in `flake.nix`:
 
 ```nix
-srcOverride = pkgs.fetchFromGitHub {
-  owner = "glitch-soc";
-  repo  = "mastodon";
-  rev   = "<new-tag>";
-  hash  = pkgs.lib.fakeHash;  # reset this
-};
-yarnHash = pkgs.lib.fakeHash;  # reset this
+version = "4.6.4";
 ```
 
-### 5. Bootstrap the source hash
+Then either push the branch — CI regenerates the sources and hashes, builds,
+and commits the result back onto the same branch — or do it locally:
 
 ```bash
-nix build 2>&1 | grep "got:"
-# Paste the reported hash into flake.nix as `hash`
+make refresh
 ```
 
-### 6. Bootstrap the yarn hash
+## Following the latest tag locally
 
 ```bash
-nix build 2>&1 | grep "got:"
-# Paste the reported hash into flake.nix as `yarnHash`
+make update              # newest upstream tag
+make update TAG=v4.6.4   # a specific tag
 ```
 
-### 7. Final build and commit
+Both leave the working tree ready to commit:
 
 ```bash
-nix build
-git add flake.nix flake.lock gemset.nix yarn-missing-hashes.json
-git commit -m "glitch-soc <version>"
+make build               # verify (needs a builder for x86_64-linux)
+git add flake.nix gemset.nix yarn-missing-hashes.json
+git commit -m "update to glitch-soc v4.6.4"
 ```
 
-> The `glitch-soc-src/` directory is only needed for steps 1-3 and should not be committed.
+`make help` lists the remaining targets (`current`, `latest`, `outdated`,
+`check`, `clean`).
+
+## What the script does
+
+1. Resolves the target tag and shallow-clones it into `glitch-soc-src/`
+   (removed afterwards, never committed).
+2. `bundix -l` in that checkout regenerates `gemset.nix`.
+3. `yarn-berry-fetcher missing-hashes` regenerates `yarn-missing-hashes.json`.
+4. Prefetches the source tarball for the `hash` in `flake.nix`.
+5. Builds the yarn offline cache as a fixed-output derivation with
+   `lib.fakeHash` and takes the reported hash as `yarnHash`.
+
+Steps 4 and 5 use the host's own system, not the `x86_64-linux` the flake
+targets: both hashes are content addressed and platform independent, so the
+update works on darwin too. Only `make build` needs a real Linux builder.

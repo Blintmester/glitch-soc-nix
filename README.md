@@ -44,4 +44,11 @@ services.mastodon.extraConfig = {
 
 ## Updating
 
-See [UPDATE.md](UPDATE.md) for the step-by-step update process.
+```bash
+make update    # follow the latest upstream tag
+make refresh   # regenerate for the version currently set in flake.nix
+make build     # verify the package builds
+```
+
+A Woodpecker pipeline (`.woodpecker/update.yaml`) does the same on a cron
+trigger and opens a pull request. See [UPDATE.md](UPDATE.md).

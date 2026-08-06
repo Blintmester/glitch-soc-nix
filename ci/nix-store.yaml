@@ -1,0 +1,48 @@
+# Exposes the k3s node's /nix to the Woodpecker pipeline pods, so the CI build
+# reuses the NixOS host's store and its nix-daemon instead of fetching and
+# rebuilding the world on every run. Building mastodon from scratch in an
+# ephemeral store is not realistic; sharing the host store is.
+#
+#   kubectl apply -f ci/nix-store.yaml
+#
+# Adjust `namespace` to wherever the Woodpecker agent creates pipeline pods
+# (WOODPECKER_BACKEND_K8S_NAMESPACE) and `nodeAffinity` to the node that runs
+# them. With more than one node, pin the pipeline to this node — a hostPath
+# volume is only meaningful there.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nix-store
+spec:
+  capacity:
+    storage: 100Gi # not enforced for hostPath, the node's disk is the limit
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /nix
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - CHANGE-ME # the NixOS node running the agent
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nix-store
+  namespace: woodpecker
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ""
+  volumeName: nix-store
+  resources:
+    requests:
+      storage: 100Gi

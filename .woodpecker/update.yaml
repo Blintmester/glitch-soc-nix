@@ -1,0 +1,87 @@
+# Keeps the packaged glitch-soc version in sync with upstream.
+#
+# Two ways in, both ending in a real `nix build`:
+#
+#   cron / manual   follow the latest upstream tag, open a pull request
+#   push            you bumped `version` in flake.nix yourself: regenerate
+#                   gemset.nix, yarn-missing-hashes.json and the hashes, and
+#                   commit them back onto the same branch
+#
+# Setup:
+#   * repo secret `forge_token`: Codeberg token with read/write on this repo
+#   * PVC `nix-store` sharing the node's /nix (see ci/nix-store.yaml)
+#   * cron "glitch-soc-update" on main, e.g. daily at 04:00
+#
+# The pipeline pods borrow nix from the host store instead of shipping their
+# own, which is why PATH points into /nix and NIX_REMOTE talks to the host
+# daemon. Alpine only provides make, git and curl.
+
+when:
+  - event: [cron, manual]
+  - event: push
+    path: flake.nix
+
+variables:
+  - &image alpine:3.22
+  - &nix_env
+    NIX_REMOTE: daemon
+    NIX_CONFIG: experimental-features = nix-command flakes
+    NIX_SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    PATH: /nix/var/nix/profiles/system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  - &nix_store
+    kubernetes:
+      volumes:
+        - name: nix-store
+          path: /nix
+      resources:
+        requests:
+          memory: 2Gi
+          cpu: 1000m
+        limits:
+          memory: 12Gi
+          cpu: 8000m
+
+steps:
+  - name: update
+    image: *image
+    environment: *nix_env
+    backend_options: *nix_store
+    commands:
+      - apk add --no-cache make git bash ca-certificates
+      - |
+        if [ "$CI_COMMIT_AUTHOR" = "woodpecker" ]; then
+          echo "own commit, skipping"
+          touch .ci-skip
+        elif [ "$CI_PIPELINE_EVENT" = "push" ]; then
+          make refresh
+        elif make outdated; then
+          make update
+        else
+          echo "already on $(make --no-print-directory current), nothing to do"
+          touch .ci-skip
+        fi
+      - git --no-pager diff --stat
+
+  - name: build
+    image: *image
+    environment: *nix_env
+    backend_options: *nix_store
+    commands:
+      - apk add --no-cache make git ca-certificates
+      - test ! -f .ci-skip || exit 0
+      - make build
+
+  - name: publish
+    image: *image
+    environment:
+      FORGE_TOKEN:
+        from_secret: forge_token
+    commands:
+      - apk add --no-cache make git curl bash
+      - test ! -f .ci-skip || exit 0
+      - |
+        if [ "$CI_PIPELINE_EVENT" = "push" ]; then
+          make push BRANCH="$CI_COMMIT_BRANCH"
+        else
+          make pr
+        fi

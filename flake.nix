@@ -9,20 +9,24 @@
   let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
+
+    # The packaged glitch-soc release. Bump this and run `make refresh` to
+    # regenerate gemset.nix, yarn-missing-hashes.json and both hashes below.
+    version = "4.6.4";
   in {
     packages.${system}.default = pkgs.mastodon.override {
-      pname   = "glitch-soc";
-      version = "4.6.2";
+      pname = "glitch-soc";
+      inherit version;
 
       srcOverride = pkgs.fetchFromGitHub {
         owner = "glitch-soc";
         repo  = "mastodon";
-        rev   = "v4.6.2";
-        hash  = "sha256-ze8qrYwQhmj1cMEsSiytZOF8lhyJ425buU20Jwh5Tl4=";
+        rev   = "v${version}";
+        hash  = "sha256-Bs/HuoN0bM+rrW4W1JqKQXgEoB9DTe3S0ZUeckCnqAQ=";
       };
 
       gemset = ./gemset.nix;
-      yarnHash = "sha256-dAzr/REG0mxGtj6R9arZCpbXAWYh08f6H7vEuv8tuVc=";
+      yarnHash = "sha256-+9AcWNxu+gJjNYR1PCRDg3Z6ByHYTIDo6ZcqaLRu9d4=";
       yarnMissingHashes = ./yarn-missing-hashes.json;
     };
   };
