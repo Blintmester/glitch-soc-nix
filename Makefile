@@ -40,25 +40,25 @@ build: ## Build the package for SYSTEM (needs a matching builder)
 check: ## Evaluate the package without building it
 	@nix eval --raw .#packages.$(SYSTEM).default.drvPath && echo
 
-pr: ## Commit on a branch and open a pull request (needs FORGE_TOKEN)
-	@test -n "$(FORGE_TOKEN)" || { echo "FORGE_TOKEN is not set"; exit 1; }
+pr: ## Commit on a branch and open a pull request (needs FORGEJO_TOKEN)
+	@test -n "$(FORGEJO_TOKEN)" || { echo "FORGEJO_TOKEN is not set"; exit 1; }
 	@version="$$($(MAKE) --no-print-directory current)"; \
 	branch="update/$$version"; \
 	git checkout -B "$$branch"; \
 	git add $(GENERATED); \
 	git -c user.name="woodpecker" -c user.email="ci@$(OWNER).noreply" \
 		commit -m "update to glitch-soc $$version"; \
-	push_url="$$(printf '%s' '$(FORGE)' | sed 's|://|://oauth2:$(FORGE_TOKEN)@|')/$(OWNER)/$(REPO).git"; \
+	push_url="$$(printf '%s' '$(FORGE)' | sed 's|://|://oauth2:$(FORGEJO_TOKEN)@|')/$(OWNER)/$(REPO).git"; \
 	git push --force "$$push_url" "$$branch" 2>&1 | sed 's|://[^@]*@|://|g'; \
 	curl -sS -X POST "$(FORGE)/api/v1/repos/$(OWNER)/$(REPO)/pulls" \
-		-H "Authorization: token $(FORGE_TOKEN)" \
+		-H "Authorization: token $(FORGEJO_TOKEN)" \
 		-H "Content-Type: application/json" \
 		-d "{\"head\":\"$$branch\",\"base\":\"$(BASE)\",\"title\":\"update to glitch-soc $$version\",\"body\":\"Automated update, verified with a full nix build on the CI runner.\"}" \
 		| grep -o '"html_url":"[^"]*"' | head -1 \
 		|| echo "no pull request created (one may already be open for $$branch)"
 
-push: ## Commit regenerated files onto BRANCH and push (needs FORGE_TOKEN)
-	@test -n "$(FORGE_TOKEN)" || { echo "FORGE_TOKEN is not set"; exit 1; }
+push: ## Commit regenerated files onto BRANCH and push (needs FORGEJO_TOKEN)
+	@test -n "$(FORGEJO_TOKEN)" || { echo "FORGEJO_TOKEN is not set"; exit 1; }
 	@test -n "$(BRANCH)" || { echo "BRANCH is not set"; exit 1; }
 	@if git diff --quiet -- $(GENERATED); then \
 		echo "nothing to commit, hashes already match"; \
@@ -67,7 +67,7 @@ push: ## Commit regenerated files onto BRANCH and push (needs FORGE_TOKEN)
 		git add $(GENERATED); \
 		git -c user.name="woodpecker" -c user.email="ci@$(OWNER).noreply" \
 			commit -m "regenerate sources for glitch-soc $$version"; \
-		push_url="$$(printf '%s' '$(FORGE)' | sed 's|://|://oauth2:$(FORGE_TOKEN)@|')/$(OWNER)/$(REPO).git"; \
+		push_url="$$(printf '%s' '$(FORGE)' | sed 's|://|://oauth2:$(FORGEJO_TOKEN)@|')/$(OWNER)/$(REPO).git"; \
 		git push "$$push_url" "HEAD:refs/heads/$(BRANCH)" 2>&1 | sed 's|://[^@]*@|://|g'; \
 	fi
 
