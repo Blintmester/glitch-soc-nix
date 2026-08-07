@@ -37,6 +37,21 @@ log() { printf '\n==> %s\n' "$*"; }
 
 flake_version() { sed -n 's/^ *version = "\(.*\)";.*/\1/p' flake.nix | head -1; }
 
+# bundix and the yarn fetcher narrate every single gem and tarball, which buries
+# the run in thousands of lines. Keep their output in a file and show it only
+# when something actually goes wrong.
+quietly() {
+  local out
+  out=$(mktemp -t update.XXXXXX.log)
+  if ! "$@" >"$out" 2>&1; then
+    echo "failed: $*" >&2
+    tail -40 "$out" >&2
+    rm -f "$out"
+    exit 1
+  fi
+  rm -f "$out"
+}
+
 # ---------------------------------------------------------------- resolve tag
 
 CURRENT="v$(flake_version)"
@@ -67,7 +82,8 @@ log "fetching $TAG"
 attempt=1
 while : ; do
   rm -rf "$SRC_DIR"
-  git clone --quiet --depth 1 --branch "$TAG" "$UPSTREAM" "$SRC_DIR" && break
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$TAG" \
+    "$UPSTREAM" "$SRC_DIR" && break
   if [ "$attempt" -ge 3 ]; then
     echo "could not clone $UPSTREAM after $attempt attempts" >&2
     exit 1
@@ -78,12 +94,22 @@ while : ; do
 done
 
 log "regenerating gemset.nix"
-(cd "$SRC_DIR" && nix run nixpkgs#bundix -- -l >/dev/null)
+quietly sh -c "cd '$SRC_DIR' && nix run nixpkgs#bundix -- -l"
 cp "$SRC_DIR/gemset.nix" "$REPO_DIR/gemset.nix"
+echo "  $(grep -c '^  [a-z]' "$REPO_DIR/gemset.nix" || true) gems"
 
 log "regenerating yarn-missing-hashes.json"
-nix run nixpkgs#yarn-berry_4.yarn-berry-fetcher -- \
-  missing-hashes "$SRC_DIR/yarn.lock" > "$REPO_DIR/yarn-missing-hashes.json"
+YARN_HASHES_LOG=$(mktemp -t missinghashes.XXXXXX.log)
+if ! nix run nixpkgs#yarn-berry_4.yarn-berry-fetcher -- \
+     missing-hashes "$SRC_DIR/yarn.lock" \
+     > "$REPO_DIR/yarn-missing-hashes.json" 2>"$YARN_HASHES_LOG"; then
+  echo "failed to compute the missing yarn hashes:" >&2
+  tail -40 "$YARN_HASHES_LOG" >&2
+  rm -f "$YARN_HASHES_LOG"
+  exit 1
+fi
+echo "  $(grep -c ':' "$YARN_HASHES_LOG" || true) packages hashed"
+rm -f "$YARN_HASHES_LOG"
 
 # ---------------------------------------------------------------- source hash
 
@@ -125,15 +151,16 @@ in yarn-berry.fetchYarnBerryDeps {
 }
 EOF
 
-# The build is expected to fail: fakeHash makes nix report the real hash. Its
-# output is teed rather than captured, so a run that is killed here (this step
-# downloads the whole yarn cache) still shows where it got to.
+# The build is expected to fail: fakeHash makes nix report the real hash. Only
+# the mismatch lines are echoed; the rest is kept for the failure case.
 YARN_LOG=$(mktemp -t yarnhash.XXXXXX.log)
 trap 'rm -f "$YARN_EXPR" "$YARN_LOG"' EXIT
-{ nix build --impure --no-link -f "$YARN_EXPR" 2>&1 || true; } | tee "$YARN_LOG"
+{ nix build --impure --no-link --quiet -f "$YARN_EXPR" 2>&1 || true; } > "$YARN_LOG"
+grep -E 'specified:|got:' "$YARN_LOG" || true
 YARN_HASH=$(sed -n 's|.*got: *\(sha256-[A-Za-z0-9+/=_-]*\).*|\1|p' "$YARN_LOG" | head -1)
 if [ -z "$YARN_HASH" ]; then
-  echo "failed to determine the yarn hash from the output above" >&2
+  echo "failed to determine the yarn hash:" >&2
+  tail -40 "$YARN_LOG" >&2
   exit 1
 fi
 
