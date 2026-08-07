@@ -27,9 +27,13 @@ variables:
   - &resources
     kubernetes:
       resources:
+        # The store lives in the pod, so the gems, the yarn cache and the asset
+        # build all land on ephemeral storage. Requesting it keeps the pod off a
+        # node that cannot hold it, and makes an eviction say so explicitly.
         requests:
           memory: 2Gi
           cpu: 1000m
+          ephemeral-storage: 20Gi
         limits:
           memory: 12Gi
           cpu: 8000m

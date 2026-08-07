@@ -64,8 +64,18 @@ log "packaged: $CURRENT   target: $TAG ($REV)"
 # --------------------------------------------------------------- fetch source
 
 log "fetching $TAG"
-rm -rf "$SRC_DIR"
-git clone --quiet --depth 1 --branch "$TAG" "$UPSTREAM" "$SRC_DIR"
+attempt=1
+while : ; do
+  rm -rf "$SRC_DIR"
+  git clone --quiet --depth 1 --branch "$TAG" "$UPSTREAM" "$SRC_DIR" && break
+  if [ "$attempt" -ge 3 ]; then
+    echo "could not clone $UPSTREAM after $attempt attempts" >&2
+    exit 1
+  fi
+  echo "clone failed, retrying ($attempt)" >&2
+  attempt=$((attempt + 1))
+  sleep 5
+done
 
 log "regenerating gemset.nix"
 (cd "$SRC_DIR" && nix run nixpkgs#bundix -- -l >/dev/null)
@@ -115,12 +125,15 @@ in yarn-berry.fetchYarnBerryDeps {
 }
 EOF
 
-# The build is expected to fail: fakeHash makes nix report the real hash.
-YARN_OUT=$( { nix build --impure --no-link -f "$YARN_EXPR" 2>&1 || true; } )
-YARN_HASH=$(printf '%s\n' "$YARN_OUT" | sed -n 's|.*got: *\(sha256-[A-Za-z0-9+/=_-]*\).*|\1|p' | head -1)
+# The build is expected to fail: fakeHash makes nix report the real hash. Its
+# output is teed rather than captured, so a run that is killed here (this step
+# downloads the whole yarn cache) still shows where it got to.
+YARN_LOG=$(mktemp -t yarnhash.XXXXXX.log)
+trap 'rm -f "$YARN_EXPR" "$YARN_LOG"' EXIT
+{ nix build --impure --no-link -f "$YARN_EXPR" 2>&1 || true; } | tee "$YARN_LOG"
+YARN_HASH=$(sed -n 's|.*got: *\(sha256-[A-Za-z0-9+/=_-]*\).*|\1|p' "$YARN_LOG" | head -1)
 if [ -z "$YARN_HASH" ]; then
-  echo "failed to determine the yarn hash:" >&2
-  printf '%s\n' "$YARN_OUT" | tail -20 >&2
+  echo "failed to determine the yarn hash from the output above" >&2
   exit 1
 fi
 
