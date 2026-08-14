@@ -52,6 +52,16 @@ quietly() {
   rm -f "$out"
 }
 
+# The store fills up as this runs. In a container that is ephemeral storage, and
+# running out of it gets the whole pod killed with no message of its own, so
+# report the trend at each step.
+space() {
+  printf '  disk: %s free on /, %s free on /nix, %s used by the store\n' \
+    "$(df -Ph / | awk 'NR==2 {print $4}')" \
+    "$(df -Ph /nix 2>/dev/null | awk 'NR==2 {print $4}')" \
+    "$(du -sh /nix/store 2>/dev/null | awk '{print $1}')"
+}
+
 # ---------------------------------------------------------------- resolve tag
 
 CURRENT="v$(flake_version)"
@@ -97,6 +107,9 @@ log "regenerating gemset.nix"
 quietly sh -c "cd '$SRC_DIR' && nix run nixpkgs#bundix -- -l"
 cp "$SRC_DIR/gemset.nix" "$REPO_DIR/gemset.nix"
 echo "  $(grep -c '^  [a-z]' "$REPO_DIR/gemset.nix" || true) gems"
+# bundix keeps a second copy of every gem here, and nothing later needs it.
+rm -rf "${HOME:-/root}/.cache/bundix"
+space
 
 log "regenerating yarn-missing-hashes.json"
 YARN_HASHES_LOG=$(mktemp -t missinghashes.XXXXXX.log)
@@ -110,6 +123,7 @@ if ! nix run nixpkgs#yarn-berry_4.yarn-berry-fetcher -- \
 fi
 echo "  $(grep -c ':' "$YARN_HASHES_LOG" || true) packages hashed"
 rm -f "$YARN_HASHES_LOG"
+space
 
 # ---------------------------------------------------------------- source hash
 
@@ -129,6 +143,7 @@ rm -f flake.nix.bak
 # this also works on darwin, where the package itself cannot be built.
 
 log "computing yarn hash"
+space
 NIXPKGS_REV=$(nix eval --raw --impure --expr \
   '(builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev')
 
