@@ -12,7 +12,7 @@
 
     # The packaged glitch-soc release. Bump this and run `make refresh` to
     # regenerate gemset.nix, yarn-missing-hashes.json and both hashes below.
-    version = "4.6.6";
+    version = "4.7.0";
   in {
     packages.${system}.default = pkgs.mastodon.override {
       pname = "glitch-soc";
@@ -22,12 +22,15 @@
         owner = "glitch-soc";
         repo  = "mastodon";
         rev   = "v${version}";
-        hash  = "sha256-lmM8yRbSSgPiFD+a05nQDc+/U9Vx07W7QrKN+os04Tw=";
+        hash  = "sha256-pnu1ulhyHpHmFWVryGvEBidJSFyUPf4bl8q8pRnSw80=";
       };
 
       gemset = ./gemset.nix;
-      yarnHash = "sha256-+9AcWNxu+gJjNYR1PCRDg3Z6ByHYTIDo6ZcqaLRu9d4=";
+      yarnHash = "sha256-Wo5a8ESc0VTVMpWU12APvDLd4qG592rsA+m1HdjmGqI=";
       yarnMissingHashes = ./yarn-missing-hashes.json;
+
+      # nixpkgs' yarn is too old for this release; see yarn-berry.nix.
+      yarn-berry_4 = import ./yarn-berry.nix { inherit pkgs; };
     };
   };
 }

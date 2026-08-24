@@ -35,6 +35,16 @@ cd "$REPO_DIR"
 
 log() { printf '\n==> %s\n' "$*"; }
 
+# `nix hash convert` only exists on CppNix 2.18 and newer; Lix kept the older
+# `nix hash to-sri` instead. Pick whichever this nix understands.
+to_sri() {
+  if nix hash convert --help >/dev/null 2>&1; then
+    nix hash convert --hash-algo sha256 --to sri "$1"
+  else
+    nix hash to-sri --type sha256 "$1"
+  fi
+}
+
 flake_version() { sed -n 's/^ *version = "\(.*\)";.*/\1/p' flake.nix | head -1; }
 
 # bundix and the yarn fetcher narrate every single gem and tarball, which buries
@@ -128,7 +138,7 @@ space
 # ---------------------------------------------------------------- source hash
 
 log "computing source hash"
-SRC_HASH=$(nix hash convert --hash-algo sha256 --to sri \
+SRC_HASH=$(to_sri \
   "$(nix-prefetch-url --unpack --type sha256 "$UPSTREAM/archive/$REV.tar.gz" 2>/dev/null | tail -1)")
 
 sed -i.bak \
@@ -158,7 +168,9 @@ let
     rev = "$TAG";
     hash = "$SRC_HASH";
   };
-  yarn-berry = pkgs.yarn-berry_4.override { nodejs = pkgs.nodejs-slim; };
+  yarn-berry = (import $REPO_DIR/yarn-berry.nix { inherit pkgs; }).override {
+    nodejs = pkgs.nodejs-slim;
+  };
 in yarn-berry.fetchYarnBerryDeps {
   inherit src;
   hash = pkgs.lib.fakeHash;
