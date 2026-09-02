@@ -22,6 +22,10 @@
 # awk, grep, tar) come from the agent's own PATH, set in nix-servers at
 # install-specific/brok/woodpecker-agent.nix. Adding a new one to a step means
 # adding it there too -- there is no image to put it in.
+#
+# `image` still has to be set: the local backend reads it as the shell to run
+# the commands with, not as something to pull, and the linter rejects a step
+# without one. `bash` resolves off that same agent PATH.
 
 when:
   - event: [cron, manual]
@@ -35,8 +39,12 @@ labels:
   location: brok
   backend: local
 
+variables:
+  - &shell bash
+
 steps:
   - name: update
+    image: *shell
     commands:
       - . ci/nix-env.sh
       - |
@@ -54,12 +62,14 @@ steps:
       - git --no-pager diff --stat
 
   - name: build
+    image: *shell
     commands:
       - . ci/nix-env.sh
       - test ! -f .ci-skip || exit 0
       - make build
 
   - name: publish
+    image: *shell
     environment:
       FORGEJO_TOKEN:
         from_secret: forgejo_token
