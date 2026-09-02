@@ -12,36 +12,31 @@
 #   * cron "glitch-soc-update" on main, e.g. "0 4 * * *" (daily 04:00, server
 #     timezone — 5 fields: min hour dom month dow)
 #
-# The pods bring their own nix, so nothing has to be mounted from the node.
-# The price is a cold store on every run: the gems and the asset build are
-# redone each time, and only what cache.nixos.org already has is fetched.
-# ci/nix-store.yaml describes the faster variant if that becomes a problem.
+# Runs on brok's local-backend agent: the steps are plain shell commands on
+# that host, so they use its own warm /nix/store and talk to its nix-daemon.
+# There is no image to pull and nothing to mount, which is what the k3s setup
+# needed ci/nix-store.yaml to arrange -- that file is now moot, kept only as
+# the fallback shape if this ever moves back into the cluster.
+#
+# The tools the Makefile and update.sh reach for (nix, make, git, curl, sed,
+# awk, grep, tar) come from the agent's own PATH, set in nix-servers at
+# install-specific/brok/woodpecker-agent.nix. Adding a new one to a step means
+# adding it there too -- there is no image to put it in.
 
 when:
   - event: [cron, manual]
   - event: push
     path: flake.nix
 
-variables:
-  - &image nixos/nix:2.32.4
-  - &resources
-    kubernetes:
-      resources:
-        # The store lives in the pod, so the gems, the yarn cache and the asset
-        # build all land on ephemeral storage. Requesting it keeps the pod off a
-        # node that cannot hold it, and makes an eviction say so explicitly.
-        requests:
-          memory: 2Gi
-          cpu: 1000m
-          ephemeral-storage: 20Gi
-        limits:
-          memory: 12Gi
-          cpu: 8000m
+# `backend` and `location` are how the two agents on brok are told apart:
+# location=brok is a custom label both of them set, backend=local is built in
+# and unique to the one that runs steps on the host itself.
+labels:
+  location: brok
+  backend: local
 
 steps:
   - name: update
-    image: *image
-    backend_options: *resources
     commands:
       - . ci/nix-env.sh
       - |
@@ -59,15 +54,12 @@ steps:
       - git --no-pager diff --stat
 
   - name: build
-    image: *image
-    backend_options: *resources
     commands:
       - . ci/nix-env.sh
       - test ! -f .ci-skip || exit 0
       - make build
 
   - name: publish
-    image: *image
     environment:
       FORGEJO_TOKEN:
         from_secret: forgejo_token
