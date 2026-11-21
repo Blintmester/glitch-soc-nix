@@ -1,0 +1,15 @@
+# Builds the package on PRs (Renovate lock bumps included), on brok's nix agent like update.yaml.
+
+when:
+  - event: pull_request
+
+labels:
+  location: brok
+  backend: local
+
+steps:
+  - name: build
+    image: bash
+    commands:
+      - . ci/nix-env.sh
+      - make build
