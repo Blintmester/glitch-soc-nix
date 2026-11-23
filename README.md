@@ -10,7 +10,7 @@ Add this flake as an input in your NixOS `flake.nix`:
 inputs = {
   nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
   glitch-soc = {
-    url = "git+https://codeberg.org/tutter/glitch-soc-nix.git";
+    url = "git+https://git.walros.dev/tutter/glitch-soc-nix.git";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 };
