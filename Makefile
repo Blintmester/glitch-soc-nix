@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 
 SYSTEM ?= x86_64-linux
 TAG    ?=
-FORGE  ?= https://codeberg.org
+FORGE  ?= https://git.walros.dev
 OWNER  ?= tutter
 REPO   ?= glitch-soc-nix
 BASE   ?= main

@@ -8,7 +8,7 @@
 #                   commit them back onto the same branch
 #
 # Setup:
-#   * repo secret `forgejo_token`: Codeberg token with read/write on this repo
+#   * repo secret `forgejo_token`: git.walros.dev token with read/write on this repo
 #   * cron "glitch-soc-update" on main, e.g. "0 4 * * *" (daily 04:00, server
 #     timezone — 5 fields: min hour dom month dow)
 #
